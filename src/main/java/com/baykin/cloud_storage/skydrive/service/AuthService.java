@@ -1,6 +1,8 @@
 package com.baykin.cloud_storage.skydrive.service;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
+import com.baykin.cloud_storage.skydrive.exception.UserAlreadyExistsException;
+import com.baykin.cloud_storage.skydrive.exception.UserNotFoundException;
 import com.baykin.cloud_storage.skydrive.model.Role;
 import com.baykin.cloud_storage.skydrive.model.User;
 import com.baykin.cloud_storage.skydrive.repository.UserRepository;
@@ -20,7 +22,7 @@ public class AuthService {
 
     public User register(AuthRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("The user already exists!");
+            throw new UserAlreadyExistsException("The user already exists!");
         }
 
         User user = User.builder()
@@ -33,6 +35,6 @@ public class AuthService {
 
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 }

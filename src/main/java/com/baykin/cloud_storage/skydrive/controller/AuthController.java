@@ -1,7 +1,9 @@
 package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
+import com.baykin.cloud_storage.skydrive.dto.AuthResponse;
 import com.baykin.cloud_storage.skydrive.model.User;
+import com.baykin.cloud_storage.skydrive.security.JwtUtil;
 import com.baykin.cloud_storage.skydrive.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,32 +25,35 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthService authService;
     private final AuthenticationManager authenticationManager;
+    private final JwtUtil jwtUtil;
 
-    public AuthController(AuthService authService, AuthenticationManager authenticationManager) {
-        this.authService = authService;
+    public AuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, AuthService authService) {
         this.authenticationManager = authenticationManager;
+        this.jwtUtil = jwtUtil;
+        this.authService = authService;
     }
 
     @PostMapping("/sign-up")
-    public ResponseEntity<?> register(@RequestBody AuthRequest request, HttpServletRequest httpRequest) {
-        User user = authService.register(request);
-        httpRequest.getSession(true);
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    public ResponseEntity<?> register(@RequestBody AuthRequest request) {
+        try {
+            User user = authService.register(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(user);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Ошибка регистрации: " + e.getMessage());
+        }
     }
 
     @PostMapping("/sign-in")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> login(@RequestBody AuthRequest request) {
         try {
-            UsernamePasswordAuthenticationToken token =
-                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword());
-            Authentication authentication = authenticationManager.authenticate(token);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            httpRequest.getSession(true);
-            User user = authService.getUserByUsername(request.getUsername());
-            return ResponseEntity.ok(user);
-        } catch (BadCredentialsException ex) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("{\"message\": \"Неверные имя пользователя или пароль\"}");
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+
+            String token = jwtUtil.generateToken(request.getUsername());
+            return ResponseEntity.ok(new AuthResponse(token));
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Неверные учетные данные");
         }
     }
 

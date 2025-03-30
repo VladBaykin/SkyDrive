@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /**
  * Контроллер для обработки запросов аутентификации.
  */
@@ -56,7 +58,7 @@ public class AuthController {
                     .body(new AuthResponse(user.getUsername()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse("Ошибка регистрации: " + e.getMessage()));
+                    .body(Map.of("message","Ошибка регистрации: " + e.getMessage()));
         }
     }
 
@@ -76,7 +78,7 @@ public class AuthController {
             return ResponseEntity.ok(new AuthResponse(request.getUsername()));
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse("Неверные учетные данные"));
+                    .body(Map.of("message","Неверные учетные данные"));
         }
     }
 
@@ -92,19 +94,5 @@ public class AuthController {
             new SecurityContextLogoutHandler().logout(request, response, auth);
         }
         return ResponseEntity.noContent().build();
-    }
-
-    /**
-     * Вспомогательный класс для ошибок
-     */
-    @Setter
-    @Getter
-    public static class ErrorResponse {
-        private String message;
-
-        public ErrorResponse(String message) {
-            this.message = message;
-        }
-
     }
 }

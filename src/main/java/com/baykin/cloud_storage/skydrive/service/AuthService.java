@@ -9,6 +9,9 @@ import com.baykin.cloud_storage.skydrive.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+/**
+ * Сервис для регистрации и работы с пользователями.
+ */
 @Service
 public class AuthService {
 
@@ -20,6 +23,9 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * Регистрация нового пользователя.
+     */
     public User register(AuthRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new UserAlreadyExistsException("The user already exists!");
@@ -34,6 +40,9 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    /**
+     * Получение пользователя по username.
+     */
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));

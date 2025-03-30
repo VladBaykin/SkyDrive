@@ -1,3 +1,6 @@
+server:
+  port: 8080
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5434/cloud_storage
@@ -19,5 +22,3 @@ spring:
       port: 6379
   session:
     store-type: redis
-server:
-  port: 8080

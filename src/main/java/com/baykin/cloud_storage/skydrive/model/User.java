@@ -3,6 +3,9 @@ package com.baykin.cloud_storage.skydrive.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+/**
+ * Сущность пользователя.
+ */
 @Entity
 @Table(name = "users", uniqueConstraints = {@UniqueConstraint(columnNames = "username")})
 @Getter

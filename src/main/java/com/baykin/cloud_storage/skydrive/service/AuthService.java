@@ -30,12 +30,11 @@ public class AuthService {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new UserAlreadyExistsException("The user already exists!");
         }
-        Role userRole = (request.getRole() != null) ? request.getRole() : Role.USER;
 
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(userRole)
+                .role(Role.USER)
                 .build();
         return userRepository.save(user);
     }

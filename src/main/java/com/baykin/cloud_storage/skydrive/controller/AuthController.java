@@ -3,7 +3,6 @@ package com.baykin.cloud_storage.skydrive.controller;
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
 import com.baykin.cloud_storage.skydrive.dto.AuthResponse;
 import com.baykin.cloud_storage.skydrive.model.User;
-import com.baykin.cloud_storage.skydrive.security.JwtUtil;
 import com.baykin.cloud_storage.skydrive.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,11 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthService authService;
     private final AuthenticationManager authenticationManager;
-    private final JwtUtil jwtUtil;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil, AuthService authService) {
+    public AuthController(AuthenticationManager authenticationManager, AuthService authService) {
         this.authenticationManager = authenticationManager;
-        this.jwtUtil = jwtUtil;
         this.authService = authService;
     }
 
@@ -37,6 +34,10 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody AuthRequest request) {
         try {
             User user = authService.register(request);
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword());
+            Authentication authentication = authenticationManager.authenticate(authToken);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
             return ResponseEntity.status(HttpStatus.CREATED).body(user);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Ошибка регистрации: " + e.getMessage());
@@ -50,8 +51,8 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
 
-            String token = jwtUtil.generateToken(request.getUsername());
-            return ResponseEntity.ok(new AuthResponse(token));
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            return ResponseEntity.ok(new AuthResponse(request.getUsername()));
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Неверные учетные данные");
         }

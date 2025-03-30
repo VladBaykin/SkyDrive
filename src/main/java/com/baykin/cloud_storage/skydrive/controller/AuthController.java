@@ -7,6 +7,8 @@ import com.baykin.cloud_storage.skydrive.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -48,7 +50,8 @@ public class AuthController {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             return ResponseEntity.status(HttpStatus.CREATED).body(user);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Ошибка регистрации: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("Ошибка регистрации: " + e.getMessage()));
         }
     }
 
@@ -66,7 +69,8 @@ public class AuthController {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             return ResponseEntity.ok(new AuthResponse(request.getUsername()));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Неверные учетные данные");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Неверные учетные данные"));
         }
     }
 
@@ -81,5 +85,19 @@ public class AuthController {
             new SecurityContextLogoutHandler().logout(request, response, auth);
         }
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Вспомогательный класс для ошибок
+     */
+    @Setter
+    @Getter
+    public static class ErrorResponse {
+        private String message;
+
+        public ErrorResponse(String message) {
+            this.message = message;
+        }
+
     }
 }

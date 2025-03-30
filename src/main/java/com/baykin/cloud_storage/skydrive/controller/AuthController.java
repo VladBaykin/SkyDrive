@@ -5,6 +5,7 @@ import com.baykin.cloud_storage.skydrive.dto.AuthResponse;
 import com.baykin.cloud_storage.skydrive.model.User;
 import com.baykin.cloud_storage.skydrive.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
@@ -40,6 +41,9 @@ public class AuthController {
      * Регистрация нового пользователя.
      */
     @Operation(summary = "Регистрация нового пользователя")
+    @ApiResponse(responseCode = "201", description = "User created")
+    @ApiResponse(responseCode = "400", description = "Validation error")
+    @ApiResponse(responseCode = "409", description = "Username already taken")
     @PostMapping("/sign-up")
     public ResponseEntity<?> register(@RequestBody AuthRequest request) {
         try {
@@ -48,7 +52,8 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword());
             Authentication authentication = authenticationManager.authenticate(authToken);
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            return ResponseEntity.status(HttpStatus.CREATED).body(user);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(new AuthResponse(user.getUsername()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ErrorResponse("Ошибка регистрации: " + e.getMessage()));
@@ -59,13 +64,14 @@ public class AuthController {
      * Авторизация пользователя.
      */
     @Operation(summary = "Авторизация пользователя")
+    @ApiResponse(responseCode = "200", description = "User authenticated")
+    @ApiResponse(responseCode = "401", description = "Invalid credentials")
     @PostMapping("/sign-in")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
-
             SecurityContextHolder.getContext().setAuthentication(authentication);
             return ResponseEntity.ok(new AuthResponse(request.getUsername()));
         } catch (BadCredentialsException e) {
@@ -78,6 +84,7 @@ public class AuthController {
      * Выход из аккаунта.
      */
     @Operation(summary = "Выход пользователя из аккаунта")
+    @ApiResponse(responseCode = "204", description = "User logged out")
     @PostMapping("/sign-out")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

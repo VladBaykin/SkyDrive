@@ -22,3 +22,8 @@ spring:
       port: 6379
   session:
     store-type: redis
+minio:
+  url: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: user-files

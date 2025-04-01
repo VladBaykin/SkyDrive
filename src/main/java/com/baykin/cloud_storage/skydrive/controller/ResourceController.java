@@ -71,7 +71,7 @@ public class ResourceController {
      */
     @Operation(summary = "Скачивание ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс скачан")
-    @GetMapping(value = "/resource/download", params = "path")
+    @GetMapping(value = "/resource/download", params = "!path")
     public void downloadResource(@RequestParam String path, HttpServletResponse response) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();

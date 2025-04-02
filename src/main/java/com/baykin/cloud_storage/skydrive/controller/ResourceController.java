@@ -1,7 +1,6 @@
 package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
-import com.baykin.cloud_storage.skydrive.service.AuthService;
 import com.baykin.cloud_storage.skydrive.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -22,11 +21,9 @@ import java.util.Map;
 @RequestMapping("/api")
 public class ResourceController {
     private final FileStorageService fileStorageService;
-    private final AuthService authService;
 
-    public ResourceController(FileStorageService fileStorageService, AuthService authService) {
+    public ResourceController(FileStorageService fileStorageService) {
         this.fileStorageService = fileStorageService;
-        this.authService = authService;
     }
 
     /**
@@ -75,13 +72,15 @@ public class ResourceController {
     public void downloadResource(@RequestParam String path, HttpServletResponse response) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            InputStream is = fileStorageService.downloadResource(username, path);
-            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-            OutputStream os = response.getOutputStream();
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
+            OutputStream os;
+            try (InputStream is = fileStorageService.downloadResource(username, path)) {
+                response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+                os = response.getOutputStream();
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
             }
             os.flush();
         } catch (UnsupportedOperationException e) {
@@ -122,7 +121,7 @@ public class ResourceController {
      */
     @Operation(summary = "Переименование/перемещение ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс перемещён")
-    @GetMapping("/resource/move")
+    @PostMapping("/resource/move")
     public ResponseEntity<?> moveResource(@RequestParam String from, @RequestParam String to) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();

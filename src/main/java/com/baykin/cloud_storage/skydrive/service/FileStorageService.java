@@ -263,4 +263,16 @@ public class FileStorageService {
         }
         return resultsList;
     }
+
+    public void createDirectory(Long userId, String path) throws Exception {
+        String userRoot = getUserRoot(String.valueOf(userId));
+        String objectName = userRoot + path + "/";
+        minioClient.putObject(
+                PutObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(objectName)
+                        .stream(new ByteArrayInputStream(new byte[0]), 0, -1)
+                        .build()
+        );
+    }
 }

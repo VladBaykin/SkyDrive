@@ -2,6 +2,7 @@ package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
 import com.baykin.cloud_storage.skydrive.dto.ResourceType;
+import com.baykin.cloud_storage.skydrive.service.AuthService;
 import com.baykin.cloud_storage.skydrive.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -9,9 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
 import java.util.List;
 import java.util.Map;
 
@@ -19,9 +18,11 @@ import java.util.Map;
 @RequestMapping("/api")
 public class DirectoryController {
 
+    private final AuthService authService;
     private final FileStorageService fileStorageService;
 
-    public DirectoryController(FileStorageService fileStorageService) {
+    public DirectoryController(AuthService authService, FileStorageService fileStorageService) {
+        this.authService = authService;
         this.fileStorageService = fileStorageService;
     }
 
@@ -54,64 +55,13 @@ public class DirectoryController {
     public ResponseEntity<?> createDirectory(@RequestParam String path) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            String userRoot = fileStorageService.getUserRoot(username);
-            String folderPath = userRoot + (path.endsWith("/") ? path : path + "/");
-            MultipartFile emptyFile = new EmptyMultipartFile(new byte[0], folderPath);
-            fileStorageService.uploadFile(username, "", emptyFile);
-            FileResourceDto dto = new FileResourceDto(folderPath, path.substring(path.lastIndexOf("/") + 1), null, ResourceType.DIRECTORY);
+            Long userId = authService.getUserIdByUsername(username);
+            fileStorageService.createDirectory(userId, path);
+            FileResourceDto dto = new FileResourceDto(path, path, null, ResourceType.DIRECTORY);
             return ResponseEntity.status(HttpStatus.CREATED).body(dto);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Ошибка создания папки: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * Вспомогательный класс для создания пустого файла в MultipartFile.
-     */
-    static class EmptyMultipartFile implements org.springframework.web.multipart.MultipartFile {
-        private final byte[] content;
-        private final String name;
-
-        public EmptyMultipartFile(byte[] content, String name) {
-            this.content = content;
-            this.name = name;
-        }
-
-        @Override
-        public String getName() {
-            return "empty";
-        }
-        @Override
-        public String getOriginalFilename() {
-            return "empty";
-        }
-        @Override
-        public String getContentType() {
-            return "application/octet-stream";
-        }
-        @Override
-        public boolean isEmpty() {
-            return content.length == 0;
-        }
-        @Override
-        public long getSize() {
-            return content.length;
-        }
-        @Override
-        public byte[] getBytes() {
-            return content;
-        }
-
-        @Override
-        public InputStream getInputStream() throws IOException {
-            return new ByteArrayInputStream(content);
-        }
-        @Override
-        public void transferTo(File dest) throws IOException, IllegalStateException {
-            try (OutputStream os = new FileOutputStream(dest)) {
-                os.write(content);
-            }
+                    .body(Map.of("message", "Ошибка: " + e.getMessage()));
         }
     }
 }

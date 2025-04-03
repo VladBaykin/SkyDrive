@@ -51,8 +51,7 @@ public class AuthService {
      * Получение ID пользователя по username.
      */
     public Long getUserIdByUsername(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        User user = getUserByUsername(username);
         return user.getId();
     }
 }

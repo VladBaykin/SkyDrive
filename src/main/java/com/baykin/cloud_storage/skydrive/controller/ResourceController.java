@@ -1,6 +1,7 @@
 package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
+import com.baykin.cloud_storage.skydrive.service.AuthService;
 import com.baykin.cloud_storage.skydrive.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -21,9 +22,11 @@ import java.util.Map;
 @RequestMapping("/api")
 public class ResourceController {
     private final FileStorageService fileStorageService;
+    private final AuthService authService;
 
-    public ResourceController(FileStorageService fileStorageService) {
+    public ResourceController(FileStorageService fileStorageService, AuthService authService) {
         this.fileStorageService = fileStorageService;
+        this.authService = authService;
     }
 
     /**
@@ -32,11 +35,15 @@ public class ResourceController {
      */
     @Operation(summary = "Получение информации о ресурсе")
     @ApiResponse(responseCode = "200", description = "Информация получена")
+    @ApiResponse(responseCode = "400", description = "Невалидный или отсутствующий путь")
+    @ApiResponse(responseCode = "401", description = "Пользователь не авторизован")
+    @ApiResponse(responseCode = "404", description = "Ресурс не найден")
     @GetMapping("/resource")
     public ResponseEntity<?> getResource(@RequestParam String path) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            FileResourceDto resource = fileStorageService.getResourceInfo(username, path);
+            Long userId = authService.getUserIdByUsername(username);
+            FileResourceDto resource = fileStorageService.getResourceInfo(userId, path);
             return ResponseEntity.ok(resource);
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -57,7 +64,8 @@ public class ResourceController {
     public ResponseEntity<?> deleteResource(@RequestParam String path) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            fileStorageService.deleteResource(username, path);
+            Long userId = authService.getUserIdByUsername(username);
+            fileStorageService.deleteResource(userId, path);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -71,12 +79,13 @@ public class ResourceController {
      */
     @Operation(summary = "Скачивание ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс скачан")
-    @GetMapping(value = "/resource/download", params = "!path")
+    @GetMapping(value = "/resource/download", params = "!zip")
     public void downloadResource(@RequestParam String path, HttpServletResponse response) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            Long userId = authService.getUserIdByUsername(username);
             OutputStream os;
-            try (InputStream is = fileStorageService.downloadResource(username, path)) {
+            try (InputStream is = fileStorageService.downloadResource(userId, path)) {
                 response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 os = response.getOutputStream();
                 byte[] buffer = new byte[8192];
@@ -103,14 +112,17 @@ public class ResourceController {
     public void downloadFolder(@RequestParam String path, HttpServletResponse response) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            InputStream is = fileStorageService.downloadFolderZip(username, path);
-            response.setContentType("application/zip");
-            response.setHeader("Content-Disposition", "attachment; filename=\"archive.zip\"");
-            OutputStream os = response.getOutputStream();
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
+            Long userId = authService.getUserIdByUsername(username);
+            OutputStream os;
+            try (InputStream is = fileStorageService.downloadFolderZip(userId, path)) {
+                response.setContentType("application/zip");
+                response.setHeader("Content-Disposition", "attachment; filename=\"archive.zip\"");
+                os = response.getOutputStream();
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
             }
             os.flush();
         } catch (Exception e) {
@@ -128,7 +140,8 @@ public class ResourceController {
     public ResponseEntity<?> moveResource(@RequestParam String from, @RequestParam String to) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            FileResourceDto resource = fileStorageService.moveResource(username, from, to);
+            Long userId = authService.getUserIdByUsername(username);
+            FileResourceDto resource = fileStorageService.moveResource(userId, from, to);
             return ResponseEntity.ok(resource);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -146,7 +159,8 @@ public class ResourceController {
     public ResponseEntity<?> searchResources(@RequestParam String query) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            List<FileResourceDto> results = fileStorageService.search(username, query);
+            Long userId = authService.getUserIdByUsername(username);
+            List<FileResourceDto> results = fileStorageService.search(userId, query);
             return ResponseEntity.ok(results);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -166,7 +180,8 @@ public class ResourceController {
                                             @RequestParam("file") MultipartFile file) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            FileResourceDto resource = fileStorageService.uploadFile(username, path, file);
+            Long userId = authService.getUserIdByUsername(username);
+            FileResourceDto resource = fileStorageService.uploadFile(userId, path, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(resource);
         } catch (Exception e) {
             if(e.getMessage().contains("уже существует")) {

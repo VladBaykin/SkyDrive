@@ -28,7 +28,7 @@ public class AuthControllerIntegrationTest {
     @Test
     void testRegistrationAndLogin() throws Exception {
         AuthRequest request = new AuthRequest();
-        request.setUsername("testuser");
+        request.setUsername("testuser12");
         request.setPassword("password");
 
         // Регистрируем пользователя
@@ -36,7 +36,7 @@ public class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("testuser"));
+                .andExpect(jsonPath("$.username").value("testuser12"));
 
         // Попытка повторной регистрации должна вернуть ошибку 409
         mockMvc.perform(post("/api/auth/sign-up")
@@ -50,6 +50,6 @@ public class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("testuser"));
+                .andExpect(jsonPath("$.username").value("testuser12"));
     }
 }

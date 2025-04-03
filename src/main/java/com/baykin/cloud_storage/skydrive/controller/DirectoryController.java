@@ -37,7 +37,8 @@ public class DirectoryController {
                                            @RequestParam(defaultValue = "false") boolean recursive) {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            List<FileResourceDto> contents = fileStorageService.listDirectory(username, path, recursive);
+            Long userId = authService.getUserIdByUsername(username);
+            List<FileResourceDto> contents = fileStorageService.listDirectory(userId, path, recursive);
             return ResponseEntity.ok(contents);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

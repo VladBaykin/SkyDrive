@@ -38,6 +38,9 @@ public class ResourceController {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
             FileResourceDto resource = fileStorageService.getResourceInfo(username, path);
             return ResponseEntity.ok(resource);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Ошибка получения ресурса: " + e.getMessage()));

@@ -2,6 +2,7 @@ package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
 import com.baykin.cloud_storage.skydrive.dto.AuthResponse;
+import com.baykin.cloud_storage.skydrive.exception.UserAlreadyExistsException;
 import com.baykin.cloud_storage.skydrive.model.User;
 import com.baykin.cloud_storage.skydrive.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +55,10 @@ public class AuthController {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new AuthResponse(user.getUsername()));
+
+        } catch (UserAlreadyExistsException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Имя пользователя занято"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message","Ошибка регистрации: " + e.getMessage()));

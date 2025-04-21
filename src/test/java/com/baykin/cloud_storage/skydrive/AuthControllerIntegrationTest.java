@@ -1,7 +1,9 @@
 package com.baykin.cloud_storage.skydrive;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
+import com.baykin.cloud_storage.skydrive.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -10,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -24,6 +25,14 @@ public class AuthControllerIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @BeforeEach
+    void cleanDatabase() {
+        userRepository.deleteAll();
+    }
 
     @Test
     void testRegistrationAndLogin() throws Exception {
@@ -42,8 +51,8 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(containsString("The user already exists")));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("The user already exists!"));
 
         // Авторизация пользователя
         mockMvc.perform(post("/api/auth/sign-in")

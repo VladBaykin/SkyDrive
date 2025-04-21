@@ -7,12 +7,9 @@ import com.baykin.cloud_storage.skydrive.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -28,41 +25,35 @@ public class DirectoryController {
 
     /**
      * Получение содержимого папки.
-     * GET /api/directory?path=$path
+     * GET /api/directory?path={folderPath}&recursive={true|false}
      */
     @Operation(summary = "Получение содержимого папки")
     @ApiResponse(responseCode = "200", description = "Содержимое папки получено")
     @GetMapping("/directory")
-    public ResponseEntity<?> listDirectory(@RequestParam String path,
-                                           @RequestParam(defaultValue = "false") boolean recursive) {
-        try {
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            Long userId = authService.getUserIdByUsername(username);
-            List<FileResourceDto> contents = fileStorageService.listDirectory(userId, path, recursive);
-            return ResponseEntity.ok(contents);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Ошибка получения содержимого папки: " + e.getMessage()));
-        }
+    public List<FileResourceDto> listDirectory(@RequestParam String path,
+                                           @RequestParam(defaultValue = "false") boolean recursive) throws Exception {
+        String username = authService.getCurrentUsername();
+        Long userId = authService.getUserIdByUsername(username);
+        return fileStorageService.listDirectory(userId, path, recursive);
     }
 
     /**
      * Создание новой пустой папки.
-     * POST /api/directory?path=$path
+     * POST /api/directory?path={newFolderPath}
      */
     @Operation(summary = "Создание новой пустой папки")
     @ApiResponse(responseCode = "201", description = "Папка создана")
     @PostMapping("/directory")
-    public ResponseEntity<?> createDirectory(@RequestParam String path) {
-        try {
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            Long userId = authService.getUserIdByUsername(username);
-            fileStorageService.createDirectory(userId, path);
-            FileResourceDto dto = new FileResourceDto(path, path, null, ResourceType.DIRECTORY);
-            return ResponseEntity.status(HttpStatus.CREATED).body(dto);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Ошибка: " + e.getMessage()));
-        }
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public FileResourceDto createDirectory(@RequestParam String path) throws Exception {
+        String username = authService.getCurrentUsername();
+        Long userId = authService.getUserIdByUsername(username);
+        fileStorageService.createDirectory(userId, path);
+        return new FileResourceDto(
+                fileStorageService.getUserRoot(userId) + path,
+                path.endsWith("/") ? path.substring(0, path.length() - 1) : path,
+                null,
+                ResourceType.DIRECTORY
+        );
     }
 }

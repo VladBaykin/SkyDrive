@@ -2,6 +2,9 @@ package com.baykin.cloud_storage.skydrive.service;
 
 import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
 import com.baykin.cloud_storage.skydrive.dto.ResourceType;
+import com.baykin.cloud_storage.skydrive.exception.AccessDeniedException;
+import com.baykin.cloud_storage.skydrive.exception.InvalidPathException;
+import com.baykin.cloud_storage.skydrive.exception.ResourceNotFoundException;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
 import io.minio.messages.Item;
@@ -53,7 +56,7 @@ public class FileStorageService {
     private void checkUserAuthorization(Long userId, String resourcePath) throws SecurityException {
         String userRoot = getUserRoot(userId);
         if (!resourcePath.startsWith(userRoot)) {
-            throw new SecurityException("Доступ запрещён: ресурс не принадлежит текущему пользователю");
+            throw new AccessDeniedException("Доступ запрещён: ресурс не принадлежит текущему пользователю");
         }
     }
 
@@ -66,14 +69,14 @@ public class FileStorageService {
         String userRoot = getUserRoot(userId);
         String objectName = userRoot + (path != null ? path : "") + file.getOriginalFilename();
         if (!objectName.startsWith(userRoot)) {
-            throw new SecurityException("Доступ запрещён");
+            throw new AccessDeniedException("Доступ запрещён: некорректный путь");
         }
         try {
             minioClient.statObject(StatObjectArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
                     .build());
-            throw new Exception("Файл с таким именем уже существует");
+            throw new InvalidPathException("Файл с таким именем уже существует");
         } catch (ErrorResponseException e) {
             if (!e.errorResponse().code().equals("NoSuchKey") &&
                     !e.errorResponse().code().equals("NotFound")) {
@@ -123,7 +126,7 @@ public class FileStorageService {
             if (results.iterator().hasNext()) {
                 return new FileResourceDto(path, name, null, ResourceType.DIRECTORY);
             } else {
-                throw new Exception("Resource not found");
+                throw new ResourceNotFoundException("Ресурс не найден: " + resourcePath);
             }
         }
     }
@@ -136,7 +139,11 @@ public class FileStorageService {
         checkUserAuthorization(userId, resourcePath);
         if (resourcePath.endsWith("/")) {
             Iterable<Result<Item>> results = minioClient.listObjects(
-                    ListObjectsArgs.builder().bucket(bucket).prefix(resourcePath).recursive(true).build());
+                    ListObjectsArgs.builder()
+                            .bucket(bucket)
+                            .prefix(resourcePath)
+                            .recursive(true)
+                            .build());
             for (Result<Item> result : results) {
                 String objectName = result.get().objectName();
                 minioClient.removeObject(RemoveObjectArgs.builder()
@@ -145,7 +152,11 @@ public class FileStorageService {
                                             .build());
             }
         } else {
-            minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(resourcePath).build());
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(resourcePath)
+                            .build());
         }
     }
 
@@ -156,7 +167,7 @@ public class FileStorageService {
     public FileResourceDto moveResource(Long userId, String from, String to) throws Exception {
         checkUserAuthorization(userId, from);
         if (!to.startsWith(getUserRoot(userId))) {
-            throw new SecurityException("Новый путь не принадлежит текущему пользователю");
+            throw new AccessDeniedException("Новый путь не принадлежит текущему пользователю");
         }
         minioClient.copyObject(CopyObjectArgs.builder()
                 .bucket(bucket)
@@ -178,7 +189,7 @@ public class FileStorageService {
     public InputStream downloadResource(Long userId, String resourcePath) throws Exception {
         checkUserAuthorization(userId, resourcePath);
         if (resourcePath.endsWith("/")) {
-            throw new UnsupportedOperationException("Для скачивания папки используйте метод downloadFolderZip");
+            throw new InvalidPathException("Для скачивания папки используйте метод downloadFolderZip");
         }
         return minioClient.getObject(GetObjectArgs.builder()
                                         .bucket(bucket)
@@ -292,7 +303,7 @@ public class FileStorageService {
         }
         String objectName = userRoot + path;
         if (!objectName.startsWith(userRoot)) {
-            throw new SecurityException("Невалидный путь");
+            throw new InvalidPathException("Невалидный путь");
         }
         minioClient.putObject(
                 PutObjectArgs.builder()

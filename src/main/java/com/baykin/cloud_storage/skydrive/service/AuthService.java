@@ -1,11 +1,15 @@
 package com.baykin.cloud_storage.skydrive.service;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
+import com.baykin.cloud_storage.skydrive.exception.AccessDeniedException;
 import com.baykin.cloud_storage.skydrive.exception.UserAlreadyExistsException;
 import com.baykin.cloud_storage.skydrive.exception.UserNotFoundException;
 import com.baykin.cloud_storage.skydrive.model.Role;
 import com.baykin.cloud_storage.skydrive.model.User;
 import com.baykin.cloud_storage.skydrive.repository.UserRepository;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -53,5 +57,18 @@ public class AuthService {
     public Long getUserIdByUsername(String username) {
         User user = getUserByUsername(username);
         return user.getId();
+    }
+
+    /**
+     * Возвращает username текущей аутентифицированной сессии.
+     */
+    public String getCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null
+                || !auth.isAuthenticated()
+                || auth instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException("Пользователь не авторизован");
+        }
+        return auth.getName();
     }
 }

@@ -4,6 +4,7 @@ import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
 import com.baykin.cloud_storage.skydrive.dto.ResourceType;
 import com.baykin.cloud_storage.skydrive.exception.AccessDeniedException;
 import com.baykin.cloud_storage.skydrive.exception.InvalidPathException;
+import com.baykin.cloud_storage.skydrive.exception.ResourceAlreadyExistsException;
 import com.baykin.cloud_storage.skydrive.exception.ResourceNotFoundException;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
@@ -76,7 +77,7 @@ public class FileStorageService {
                     .bucket(bucket)
                     .object(objectName)
                     .build());
-            throw new InvalidPathException("Файл с таким именем уже существует");
+            throw new ResourceAlreadyExistsException("Файл с таким именем уже существует");
         } catch (ErrorResponseException e) {
             if (!e.errorResponse().code().equals("NoSuchKey") &&
                     !e.errorResponse().code().equals("NotFound")) {

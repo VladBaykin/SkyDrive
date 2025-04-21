@@ -137,6 +137,7 @@ public class ResourceController {
     @Operation(summary = "Загрузка файла")
     @ApiResponse(responseCode = "201", description = "Файл загружен")
     @PostMapping(value = "/resource", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
     public FileResourceDto uploadResource(@RequestParam String path,
                                             @RequestParam("file") MultipartFile file) throws Exception {
         String username = authService.getCurrentUsername();

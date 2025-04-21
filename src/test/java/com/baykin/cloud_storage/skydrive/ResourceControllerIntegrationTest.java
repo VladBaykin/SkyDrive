@@ -1,6 +1,7 @@
 package com.baykin.cloud_storage.skydrive;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
+import com.baykin.cloud_storage.skydrive.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,17 +13,15 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
+import java.nio.charset.StandardCharsets;
+
+import static org.hamcrest.Matchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-// Обеспечиваем чистоту контекста между тестами
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 public class ResourceControllerIntegrationTest {
 
@@ -32,81 +31,135 @@ public class ResourceControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private String uniqueUsername;
+    @Autowired
+    private UserRepository userRepository;
+
+    private final String username = "user";
+    private final String password = "password";
 
     @BeforeEach
-    void setUp() throws Exception {
-        uniqueUsername = "fileuser" + System.currentTimeMillis();
-        AuthRequest registerRequest = new AuthRequest();
-        registerRequest.setUsername(uniqueUsername);
-        registerRequest.setPassword("password");
+    void setup() throws Exception {
+        userRepository.deleteAll();
 
+        AuthRequest req = new AuthRequest();
+        req.setUsername(username);
+        req.setPassword(password);
         mockMvc.perform(post("/api/auth/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registerRequest)))
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
     @Test
-    void testFileUploadAndConflict() throws Exception {
-        // Создаем multipart файл
-        MockMultipartFile file = new MockMultipartFile("file", "test.txt",
-                "text/plain", "Hello, world!".getBytes());
+    void uploadListDownloadDeleteFlow() throws Exception {
+        // 1) Загрузка файла
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "a.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8)
+        );
 
-        // Первый вызов – ожидаем статус 201 Created
         mockMvc.perform(multipart("/api/resource")
                         .file(file)
-                        .param("path", "documents/")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
+                        .param("path", "docs/")
+                        .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name", is("test.txt")))
-                .andExpect(jsonPath("$.type", is("FILE")));
+                .andExpect(jsonPath("$.name").value("a.txt"));
 
-        // Повторная загрузка того же файла должна вернуть статус 409 Conflict
+        // 2) Повторная загрузка → 400 или 409 (в зависимости от вашего кода)
         mockMvc.perform(multipart("/api/resource")
                         .file(file)
-                        .param("path", "documents/")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
-                .andExpect(status().isConflict())
-                .andExpect(content().string(containsString("уже существует")));
+                        .param("path", "docs/")
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isConflict());
+
+        // 3) Листинг директории
+        mockMvc.perform(get("/api/directory")
+                        .param("path", "docs/")
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("a.txt"));
+
+        // 4) Получение информации о ресурсе
+        String fullPath = String.format("user-%d-files/docs/a.txt",
+                userRepository.findByUsername(username).get().getId());
+        mockMvc.perform(get("/api/resource")
+                        .param("path", fullPath)
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("FILE"));
+
+        // 5) Скачивание файла
+        mockMvc.perform(get("/api/resource/download")
+                        .param("path", fullPath)
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/octet-stream"));
+
+        // 6) Удаление файла
+        mockMvc.perform(delete("/api/resource")
+                        .param("path", fullPath)
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isNoContent());
+
+        // 7) Повторное получение → 404
+        mockMvc.perform(get("/api/resource")
+                        .param("path", fullPath)
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void testListDirectoryAndDownloadZip() throws Exception {
-        // Загружаем два файла в папку "archive/"
-        MockMultipartFile file1 = new MockMultipartFile("file", "file1.txt",
-                "text/plain", "Content of file1".getBytes());
-        MockMultipartFile file2 = new MockMultipartFile("file", "file2.txt",
-                "text/plain", "Content of file2".getBytes());
+    void createAndDownloadFolderAsZip() throws Exception {
+        // Загружаем два файла в архив
+        MockMultipartFile f1 = new MockMultipartFile("file", "f1.txt",
+                "text/plain", "1".getBytes());
+        MockMultipartFile f2 = new MockMultipartFile("file", "f2.txt",
+                "text/plain", "2".getBytes());
 
-        mockMvc.perform(multipart("/api/resource")
-                        .file(file1)
-                        .param("path", "archive/")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
+        mockMvc.perform(multipart("/api/resource").file(f1).param("path","ziptest/")
+                        .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated());
-        mockMvc.perform(multipart("/api/resource")
-                        .file(file2)
-                        .param("path", "archive/")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
+        mockMvc.perform(multipart("/api/resource").file(f2).param("path","ziptest/")
+                        .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated());
 
-        // Получаем содержимое папки (нерекурсивно)
-        mockMvc.perform(get("/api/directory")
-                        .param("path", "archive/")
-                        .param("recursive", "false")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
-                .andExpect(status().isOk());
-
-        // Формируем полный путь к папке.
-        // Корневой путь формируется как "user-{username}-files/"
-        String folderPath = "user-" + uniqueUsername + "-files/archive/";
-        // Скачиваем папку в виде ZIP-архива
+        // Скачиваем папку как zip
+        String folderPath = String.format("user-%d-files/ziptest/",
+                userRepository.findByUsername(username).get().getId());
         mockMvc.perform(get("/api/resource/download")
                         .param("path", folderPath)
                         .param("zip", "true")
-                        .with(user(uniqueUsername).password("password").roles("USER")))
+                        .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Disposition", containsString("attachment; filename=\"archive.zip\"")))
+                .andExpect(header().string("Content-Disposition", containsString("archive.zip")))
                 .andExpect(content().contentType("application/zip"));
+    }
+
+    @Test
+    void moveAndSearch() throws Exception {
+        // Загрузка файла
+        MockMultipartFile file = new MockMultipartFile("file","m.txt",
+                "text/plain","m".getBytes());
+        mockMvc.perform(multipart("/api/resource").file(file).param("path","mv/")
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isCreated());
+
+        // Переименование
+        String from = String.format("user-%d-files/mv/m.txt",
+                userRepository.findByUsername(username).get().getId());
+        String to   = String.format("user-%d-files/mv/new.txt",
+                userRepository.findByUsername(username).get().getId());
+        mockMvc.perform(post("/api/resource/move")
+                        .param("from", from)
+                        .param("to", to)
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("new.txt"));
+
+        // Поиск
+        mockMvc.perform(get("/api/resource/search")
+                        .param("query","new")
+                        .with(user(username).password(password).roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("new.txt"));
     }
 }

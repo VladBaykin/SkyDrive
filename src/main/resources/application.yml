@@ -6,7 +6,7 @@ spring:
     path match:
       matching-strategy: ant_path_matcher
   datasource:
-    url: jdbc:postgresql://localhost:5434/cloud_storage
+    url: jdbc:postgresql://localhost:5432/cloud_storage
     username: postgres
     password: password
     driver-class-name: org.postgresql.Driver
@@ -24,9 +24,19 @@ spring:
       host: localhost
       port: 6379
   session:
-    store-type: redis
+    timeout: 1800
+    redis:
+      flush-mode: on_save
+      namespace: spring:session
 minio:
   url: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: user-files
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.session: DEBUG
+    org.springframework.web: DEBUG
+    com.baykin: TRACE

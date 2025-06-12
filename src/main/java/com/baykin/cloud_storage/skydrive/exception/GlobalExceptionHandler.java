@@ -41,9 +41,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException ex) {
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(Map.of("message", ex.getMessage()));
+        Map<String, String> body = Map.of("message", ex.getMessage(),
+                "cause", "Insufficient permissions");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
 

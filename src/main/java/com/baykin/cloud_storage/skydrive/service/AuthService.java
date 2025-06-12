@@ -27,6 +27,10 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    public String getUserRoot(Long userId) {
+        return "user-" + userId + "-files/";
+    }
+
     /**
      * Регистрация нового пользователя.
      */

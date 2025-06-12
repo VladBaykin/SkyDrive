@@ -4,7 +4,7 @@ window.APP_CONFIG = {
 
     mainName: "CLOUD STORAGE",
 
-    baseUrl: "",
+    baseUrl: "http://localhost:8080",
 
     baseApi: "/api",
 
@@ -29,13 +29,6 @@ window.APP_CONFIG = {
         maxLength: 200,
         pattern: "^[^/\\\\:*?\"<>|]+$",
     },
-
-
-    /*
-    *
-    * Утилитные конфигурации
-    *
-    * */
 
     isMoveAllowed: true,
 

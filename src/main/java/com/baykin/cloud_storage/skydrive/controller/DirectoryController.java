@@ -50,7 +50,7 @@ public class DirectoryController {
         Long userId = authService.getUserIdByUsername(username);
         fileStorageService.createDirectory(userId, path);
         return new FileResourceDto(
-                fileStorageService.getUserRoot(userId) + path,
+                path,
                 path.endsWith("/") ? path.substring(0, path.length() - 1) : path,
                 null,
                 ResourceType.DIRECTORY

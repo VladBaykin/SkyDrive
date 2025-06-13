@@ -2,9 +2,6 @@ server:
   port: 8080
 
 spring:
-  mvc:
-    path match:
-      matching-strategy: ant_path_matcher
   datasource:
     url: jdbc:postgresql://localhost:5432/cloud_storage
     username: postgres
@@ -33,10 +30,3 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: user-files
-
-logging:
-  level:
-    org.springframework.security: DEBUG
-    org.springframework.session: DEBUG
-    org.springframework.web: DEBUG
-    com.baykin: TRACE

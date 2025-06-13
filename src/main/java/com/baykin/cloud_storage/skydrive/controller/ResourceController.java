@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -138,10 +139,15 @@ public class ResourceController {
     @ApiResponse(responseCode = "201", description = "Файл загружен")
     @PostMapping(value = "/resource", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public FileResourceDto uploadResource(@RequestParam String path,
-                                            @RequestParam("file") MultipartFile file) throws Exception {
+    public List<FileResourceDto> uploadResource(
+            @RequestParam(value = "path", required = false, defaultValue = "") String path,
+            @RequestPart("file") MultipartFile[] files) throws Exception {
         String username = authService.getCurrentUsername();
         Long userId = authService.getUserIdByUsername(username);
-        return fileStorageService.uploadFile(userId, path, file);
+        List<FileResourceDto> uploaded = new ArrayList<>();
+        for (MultipartFile file : files) {
+            uploaded.add(fileStorageService.uploadFile(userId, path, file));
+        }
+        return uploaded;
     }
 }

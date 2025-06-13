@@ -47,7 +47,7 @@ class SkyDriveApplicationTests {
         registry.add("minio.url", () -> "http://" + minio.getHost() + ":" + minio.getMappedPort(9000));
         registry.add("minio.access-key", () -> "minioadmin");
         registry.add("minio.secret-key", () -> "minioadmin");
-        registry.add("minio.bucket", () -> "user-files");
+        registry.add("minio.bucket-name", () -> "user-files");
     }
 
     @Test

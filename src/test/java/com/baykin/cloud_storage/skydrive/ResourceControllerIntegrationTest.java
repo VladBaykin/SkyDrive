@@ -62,7 +62,7 @@ public class ResourceControllerIntegrationTest {
                         .param("path", "docs/")
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("a.txt"));
+                .andExpect(jsonPath("$[0].name").value("a.txt"));
 
         // 2) Повторная загрузка → 400 или 409 (в зависимости от вашего кода)
         mockMvc.perform(multipart("/api/resource")

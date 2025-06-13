@@ -71,11 +71,11 @@ public class FileStorageService {
     public FileResourceDto uploadFile(Long userId, String path, MultipartFile file) throws Exception {
         checkUserAuthorization(path);
         String userRoot = getUserRoot(userId);
-        String objectName = userRoot + (path != null ? path : "") + file.getOriginalFilename();
+        String dir = (path == null || path.isBlank()) ? "" : (path.endsWith("/") ? path : path + "/");
+        String objectName = userRoot + dir + file.getOriginalFilename();
         if (!objectName.startsWith(userRoot)) {
             throw new AccessDeniedException("Доступ запрещён: некорректный путь");
         }
-
         try {
             minioClient.statObject(StatObjectArgs.builder()
                     .bucket(bucket)
@@ -97,9 +97,8 @@ public class FileStorageService {
                     .contentType(file.getContentType())
                     .build());
         }
-
         return new FileResourceDto(
-                path != null ? path : "",
+                dir,
                 file.getOriginalFilename(),
                 file.getSize(),
                 ResourceType.FILE
@@ -171,7 +170,6 @@ public class FileStorageService {
      * Реализуется через копирование и удаление исходного объекта.
      */
     public FileResourceDto moveResource(Long userId, String from, String to) throws Exception {
-
         if (!to.startsWith(getUserRoot(userId))) {
             throw new AccessDeniedException("Новый путь не принадлежит текущему пользователю");
         }
@@ -193,7 +191,6 @@ public class FileStorageService {
      * Если это папка – выбрасываем исключение, так как используется метод downloadFolderZip.
      */
     public InputStream downloadResource(Long userId, String resourcePath) throws Exception {
-
         if (resourcePath.endsWith("/")) {
             throw new InvalidPathException("Для скачивания папки используйте метод downloadFolderZip");
         }
@@ -258,7 +255,6 @@ public class FileStorageService {
         List<FileResourceDto> resultsList = new ArrayList<>();
         Iterable<Result<Item>> results = minioClient.listObjects(
                 ListObjectsArgs.builder().bucket(bucket).prefix(fullFolderPath).recursive(recursive).build());
-
         for (Result<Item> result : results) {
             Item item = result.get();
             String objectName = item.objectName();
@@ -312,7 +308,6 @@ public class FileStorageService {
         if (!objectName.startsWith(userRoot)) {
             throw new InvalidPathException("Невалидный путь");
         }
-
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(bucket)

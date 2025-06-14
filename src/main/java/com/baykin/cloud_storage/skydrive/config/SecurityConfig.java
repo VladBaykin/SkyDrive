@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
                         .sessionFixation().migrateSession()
                         .maximumSessions(1)
+                        .sessionRegistry(sessionRegistry())
                 )
                 .securityContext(securityContext -> securityContext.requireExplicitSave(false))
                 .formLogin(AbstractHttpConfigurer::disable)

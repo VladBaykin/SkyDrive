@@ -106,11 +106,11 @@ public class ResourceController {
 
     /**
      * Переименование/перемещение ресурса.
-     * POST /api/resource/move?from={oldPath}&to={newPath}
+     * GET /api/resource/move?from={oldPath}&to={newPath}
      */
     @Operation(summary = "Переименование/перемещение ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс перемещён")
-    @PostMapping("/resource/move")
+    @GetMapping("/resource/move")
     public FileResourceDto moveResource(@RequestParam String from, @RequestParam String to) throws Exception {
         String username = authService.getCurrentUsername();
         Long userId = authService.getUserIdByUsername(username);

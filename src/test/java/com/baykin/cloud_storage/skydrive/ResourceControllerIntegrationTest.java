@@ -148,7 +148,7 @@ public class ResourceControllerIntegrationTest {
                 userRepository.findByUsername(username).get().getId());
         String to   = String.format("user-%d-files/mv/new.txt",
                 userRepository.findByUsername(username).get().getId());
-        mockMvc.perform(post("/api/resource/move")
+        mockMvc.perform(get("/api/resource/move")
                         .param("from", from)
                         .param("to", to)
                         .with(user(username).password(password).roles("USER")))

@@ -44,16 +44,19 @@ public class DirectoryController {
     @Operation(summary = "Создание новой пустой папки")
     @ApiResponse(responseCode = "201", description = "Папка создана")
     @PostMapping("/directory")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public FileResourceDto createDirectory(@RequestParam String path) throws Exception {
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<FileResourceDto> createDirectory(@RequestParam String path) throws Exception {
         String username = authService.getCurrentUsername();
         Long userId = authService.getUserIdByUsername(username);
         fileStorageService.createDirectory(userId, path);
-        return new FileResourceDto(
-                path,
-                path.endsWith("/") ? path.substring(0, path.length() - 1) : path,
+        FileResourceDto dto = new FileResourceDto(
+                path.endsWith("/") ? path : path + "/",
+                path.endsWith("/")
+                        ? path.substring(path.lastIndexOf("/", path.length() - 2) + 1, path.length() - 1)
+                        : path.substring(path.lastIndexOf("/") + 1),
                 null,
                 ResourceType.DIRECTORY
         );
+        return List.of(dto);
     }
 }

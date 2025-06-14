@@ -68,10 +68,10 @@ public class FileStorageService {
      * Если в имени файла есть вложенные директории, они будут созданы автоматически.
      * Если файл уже существует, выбрасывается исключение.
      */
-    public FileResourceDto uploadFile(Long userId, String path, MultipartFile file) throws Exception {
-        checkUserAuthorization(path);
+    public FileResourceDto uploadFile(Long userId, String relativePath, MultipartFile file) throws Exception {
+        checkUserAuthorization(relativePath);
         String userRoot = getUserRoot(userId);
-        String dir = (path == null || path.isBlank()) ? "" : (path.endsWith("/") ? path : path + "/");
+        String dir = (relativePath == null || relativePath.isBlank()) ? "" : (relativePath.endsWith("/") ? relativePath : relativePath + "/");
         String objectName = userRoot + dir + file.getOriginalFilename();
         if (!objectName.startsWith(userRoot)) {
             throw new AccessDeniedException("Доступ запрещён: некорректный путь");
@@ -108,16 +108,16 @@ public class FileStorageService {
     /**
      * Получение информации о ресурсе (файл или папка) по его полному пути.
      */
-    public FileResourceDto getResourceInfo(Long userId, String resourcePath) throws Exception {
-        checkUserAuthorization(resourcePath);
-        int lastSlash = resourcePath.lastIndexOf("/");
-        String path = resourcePath.substring(0, lastSlash + 1);
-        String name = resourcePath.substring(lastSlash + 1);
+    public FileResourceDto getResourceInfo(Long userId, String relativePath) throws Exception {
+        checkUserAuthorization(relativePath);
+        int lastSlash = relativePath.lastIndexOf("/");
+        String path = relativePath.substring(0, lastSlash + 1);
+        String name = relativePath.substring(lastSlash + 1);
         try {
             StatObjectResponse stat =
                     minioClient.statObject(StatObjectArgs.builder()
                             .bucket(bucket)
-                            .object(resourcePath)
+                            .object(relativePath)
                             .build()
                     );
             return new FileResourceDto(path, name, stat.size(), ResourceType.FILE);
@@ -125,13 +125,13 @@ public class FileStorageService {
             Iterable<Result<Item>> results =
                     minioClient.listObjects(ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(resourcePath)
+                            .prefix(relativePath)
                             .recursive(false)
                             .build());
             if (results.iterator().hasNext()) {
                 return new FileResourceDto(path, name, null, ResourceType.DIRECTORY);
             } else {
-                throw new ResourceNotFoundException("Ресурс не найден: " + resourcePath);
+                throw new ResourceNotFoundException("Ресурс не найден: " + relativePath);
             }
         }
     }
@@ -140,13 +140,13 @@ public class FileStorageService {
      * Удаление ресурса (файл или папка).
      * Если ресурс – папка, удаляются все объекты с данным префиксом.
      */
-    public void deleteResource(Long userId, String resourcePath) throws Exception {
-        checkUserAuthorization(resourcePath);
-        if (resourcePath.endsWith("/")) {
+    public void deleteResource(Long userId, String relativePath) throws Exception {
+        checkUserAuthorization(relativePath);
+        if (relativePath.endsWith("/")) {
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(resourcePath)
+                            .prefix(relativePath)
                             .recursive(true)
                             .build());
             for (Result<Item> result : results) {
@@ -160,7 +160,7 @@ public class FileStorageService {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
-                            .object(resourcePath)
+                            .object(relativePath)
                             .build());
         }
     }
@@ -190,44 +190,61 @@ public class FileStorageService {
      * Если это файл – возвращаем InputStream для его чтения.
      * Если это папка – выбрасываем исключение, так как используется метод downloadFolderZip.
      */
-    public InputStream downloadResource(Long userId, String resourcePath) throws Exception {
-        if (resourcePath.endsWith("/")) {
+    public InputStream downloadResource(Long userId, String relativePath) throws Exception {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new InvalidPathException("Путь не может быть пустым");
+        }
+        if (relativePath.endsWith("/")) {
             throw new InvalidPathException("Для скачивания папки используйте метод downloadFolderZip");
         }
-        return minioClient.getObject(GetObjectArgs.builder()
-                .bucket(bucket)
-                .object(resourcePath)
-                .build());
+        checkUserAuthorization(relativePath);
+        String objectName = getUserRoot(userId) + relativePath;
+        try {
+            return minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(objectName)
+                            .build()
+            );
+        } catch (ErrorResponseException e) {
+            if (e.errorResponse().code().equals("NoSuchKey")) {
+                throw new ResourceNotFoundException("Файл не найден: " + relativePath);
+            }
+            throw e;
+        }
     }
 
     /**
      * Скачивание папки в виде ZIP-архива.
      * Метод находит все объекты с заданным префиксом и архивирует их.
      */
-    public InputStream downloadFolderZip(Long userId, String folderPath) throws Exception {
-        if (!folderPath.endsWith("/")) {
-            folderPath += "/";
+    public InputStream downloadFolderZip(Long userId, String relativePath) throws Exception {
+        if (relativePath == null) {
+            throw new InvalidPathException("Путь не может быть пустым");
         }
-        checkUserAuthorization(folderPath);
+        String normalized = relativePath.endsWith("/") ? relativePath : relativePath + "/";
+        checkUserAuthorization(normalized);
+        String prefix = getUserRoot(userId) + normalized;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(folderPath)
+                            .prefix(prefix)
                             .recursive(true)
-                            .build());
+                            .build()
+            );
             for (Result<Item> result : results) {
                 Item item = result.get();
-                if (item.isDir()) {
-                    continue;
-                }
-                try (InputStream is = minioClient.getObject(GetObjectArgs.builder()
-                        .bucket(bucket)
-                        .object(item.objectName())
-                        .build())) {
-                    String entryName = item.objectName().substring(folderPath.length());
+                if (item.isDir()) continue;
+                try (InputStream is = minioClient.getObject(
+                        GetObjectArgs.builder()
+                                .bucket(bucket)
+                                .object(item.objectName())
+                                .build())) {
+                    String entryName = item.objectName().substring(prefix.length());
                     zos.putNextEntry(new ZipEntry(entryName));
+
                     byte[] buffer = new byte[8192];
                     int len;
                     while ((len = is.read(buffer)) > 0) {

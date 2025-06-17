@@ -187,19 +187,58 @@ public class FileStorageService {
      * Реализуется через копирование и удаление исходного объекта.
      */
     public FileResourceDto moveResource(Long userId, String from, String to) throws Exception {
-        if (!to.startsWith(getUserRoot(userId))) {
-            throw new AccessDeniedException("Новый путь не принадлежит текущему пользователю");
+        checkUserAuthorization(from);
+        checkUserAuthorization(to);
+        String userRoot = getUserRoot(userId);
+        String sourceRelative = from.startsWith(userRoot) ? from.substring(userRoot.length()) : from;
+        String targetRelative = to.startsWith(userRoot)   ? to.substring(userRoot.length())   : to;
+        String sourceObject = userRoot + sourceRelative;
+        String targetObject = userRoot + targetRelative;
+        if (!sourceObject.startsWith(userRoot) || !targetObject.startsWith(userRoot)) {
+            throw new AccessDeniedException("Пути должны находиться в корневой папке пользователя");
         }
-        minioClient.copyObject(CopyObjectArgs.builder()
-                .bucket(bucket)
-                .object(to)
-                .source(CopySource.builder().bucket(bucket).object(from).build())
-                .build());
-        minioClient.removeObject(RemoveObjectArgs.builder()
-                .bucket(bucket)
-                .object(from)
-                .build());
-        return getResourceInfo(userId, to);
+        if (sourceRelative.endsWith("/")) {
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder()
+                            .bucket(bucket)
+                            .prefix(sourceObject)
+                            .recursive(true)
+                            .build()
+            );
+            for (Result<Item> r : results) {
+                Item item = r.get();
+                if (item.isDir()) continue;
+                String objectName = item.objectName();
+                String innerPath = objectName.substring(sourceObject.length());
+                String newObjectName = targetObject + innerPath;
+                minioClient.copyObject(CopyObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(newObjectName)
+                        .source(CopySource.builder()
+                                .bucket(bucket)
+                                .object(objectName)
+                                .build())
+                        .build());
+                minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(objectName)
+                        .build());
+            }
+        } else {
+            minioClient.copyObject(CopyObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(targetObject)
+                    .source(CopySource.builder()
+                            .bucket(bucket)
+                            .object(sourceObject)
+                            .build())
+                    .build());
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(sourceObject)
+                    .build());
+        }
+        return getResourceInfo(userId, targetObject);
     }
 
     /**

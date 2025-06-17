@@ -110,24 +110,35 @@ public class FileStorageService {
      */
     public FileResourceDto getResourceInfo(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
-        int lastSlash = relativePath.lastIndexOf("/");
-        String path = relativePath.substring(0, lastSlash + 1);
-        String name = relativePath.substring(lastSlash + 1);
+        boolean isDirPath = relativePath.endsWith("/");
+        String normalized = isDirPath
+                ? relativePath.substring(0, relativePath.length() - 1)
+                : relativePath;
+        int lastSlash = normalized.lastIndexOf("/");
+        String path = lastSlash >= 0
+                ? normalized.substring(0, lastSlash + 1)
+                : "";
+        String name = lastSlash >= 0
+                ? normalized.substring(lastSlash + 1)
+                : normalized;
+
         try {
-            StatObjectResponse stat =
-                    minioClient.statObject(StatObjectArgs.builder()
+            StatObjectResponse stat = minioClient.statObject(
+                    StatObjectArgs.builder()
                             .bucket(bucket)
-                            .object(relativePath)
+                            .object(normalized + (isDirPath ? "/" : ""))
                             .build()
-                    );
+            );
             return new FileResourceDto(path, name, stat.size(), ResourceType.FILE);
         } catch (ErrorResponseException e) {
-            Iterable<Result<Item>> results =
-                    minioClient.listObjects(ListObjectsArgs.builder()
+            String prefix = normalized + "/";
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(relativePath)
+                            .prefix(getUserRoot(userId) + prefix)
                             .recursive(false)
-                            .build());
+                            .build()
+            );
             if (results.iterator().hasNext()) {
                 return new FileResourceDto(path, name, null, ResourceType.DIRECTORY);
             } else {
@@ -198,7 +209,11 @@ public class FileStorageService {
             throw new InvalidPathException("Для скачивания папки используйте метод downloadFolderZip");
         }
         checkUserAuthorization(relativePath);
-        String objectName = getUserRoot(userId) + relativePath;
+        String userRoot = getUserRoot(userId);
+        if (!relativePath.startsWith(userRoot)) {
+            throw new AccessDeniedException("Путь не принадлежит текущему пользователю");
+        }
+        String objectName = relativePath;
         try {
             return minioClient.getObject(
                     GetObjectArgs.builder()
@@ -224,7 +239,11 @@ public class FileStorageService {
         }
         String normalized = relativePath.endsWith("/") ? relativePath : relativePath + "/";
         checkUserAuthorization(normalized);
-        String prefix = getUserRoot(userId) + normalized;
+        String userRoot = getUserRoot(userId);
+        if (!normalized.startsWith(userRoot)) {
+            throw new AccessDeniedException("Путь не принадлежит текущему пользователю");
+        }
+        String prefix = normalized;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             Iterable<Result<Item>> results = minioClient.listObjects(
@@ -265,28 +284,41 @@ public class FileStorageService {
     public List<FileResourceDto> listDirectory(Long userId, String folderPath, boolean recursive) throws Exception {
         checkUserAuthorization(folderPath);
         String userRoot = getUserRoot(userId);
-        String fullFolderPath = userRoot + (folderPath != null ? folderPath : "");
-        if (!fullFolderPath.endsWith("/")) {
-            fullFolderPath += "/";
-        }
-        List<FileResourceDto> resultsList = new ArrayList<>();
-        Iterable<Result<Item>> results = minioClient.listObjects(
-                ListObjectsArgs.builder().bucket(bucket).prefix(fullFolderPath).recursive(recursive).build());
-        for (Result<Item> result : results) {
-            Item item = result.get();
-            String objectName = item.objectName();
-            String relativePath = objectName.substring(userRoot.length());
-            int lastSlash = relativePath.lastIndexOf('/');
-            String path = relativePath.substring(0, lastSlash + 1);
-            String name = relativePath.substring(lastSlash + 1);
 
-            if (item.isDir() || relativePath.isEmpty()) {
-                resultsList.add(new FileResourceDto(path, name, null, ResourceType.DIRECTORY));
-            } else {
-                resultsList.add(new FileResourceDto(path, name, item.size(), ResourceType.FILE));
-            }
+        String fullPrefix = userRoot + (folderPath != null ? folderPath : "");
+        if (!fullPrefix.endsWith("/")) {
+            fullPrefix += "/";
         }
-        return resultsList;
+        List<FileResourceDto> result = new ArrayList<>();
+        Iterable<Result<Item>> items = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket(bucket)
+                        .prefix(fullPrefix)
+                        .recursive(recursive)
+                        .build()
+        );
+        for (Result<Item> r : items) {
+            Item item = r.get();
+            String objectName = item.objectName();
+            String relPath = objectName.substring(userRoot.length());
+            boolean isDir = item.isDir() || relPath.endsWith("/");
+            String normalized = isDir
+                    ? relPath.substring(0, relPath.length() - 1)
+                    : relPath;
+            int idx = normalized.lastIndexOf("/");
+            String path = idx >= 0
+                    ? normalized.substring(0, idx + 1)
+                    : "";
+            String name = idx >= 0
+                    ? normalized.substring(idx + 1)
+                    : normalized;
+            Long size = isDir ? null : item.size();
+            ResourceType type = isDir ? ResourceType.DIRECTORY : ResourceType.FILE;
+
+            result.add(new FileResourceDto(path, name, size, type));
+        }
+
+        return result;
     }
 
     /**

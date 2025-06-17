@@ -153,26 +153,32 @@ public class FileStorageService {
      */
     public void deleteResource(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
+        String userRoot = getUserRoot(userId);
+        String fullPath = userRoot + relativePath;
         if (relativePath.endsWith("/")) {
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(relativePath)
+                            .prefix(fullPath)
                             .recursive(true)
-                            .build());
+                            .build()
+            );
             for (Result<Item> result : results) {
                 String objectName = result.get().objectName();
-                minioClient.removeObject(RemoveObjectArgs.builder()
-                        .bucket(bucket)
-                        .object(objectName)
-                        .build());
+                minioClient.removeObject(
+                        RemoveObjectArgs.builder()
+                                .bucket(bucket)
+                                .object(objectName)
+                                .build()
+                );
             }
         } else {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
-                            .object(relativePath)
-                            .build());
+                            .object(fullPath)
+                            .build()
+            );
         }
     }
 

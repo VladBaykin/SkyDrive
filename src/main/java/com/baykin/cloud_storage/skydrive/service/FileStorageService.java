@@ -110,42 +110,53 @@ public class FileStorageService {
      */
     public FileResourceDto getResourceInfo(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
-        boolean isDirPath = relativePath.endsWith("/");
-        String normalized = isDirPath
-                ? relativePath.substring(0, relativePath.length() - 1)
-                : relativePath;
-        int lastSlash = normalized.lastIndexOf("/");
-        String path = lastSlash >= 0
-                ? normalized.substring(0, lastSlash + 1)
-                : "";
-        String name = lastSlash >= 0
-                ? normalized.substring(lastSlash + 1)
-                : normalized;
-
+        String userRoot = getUserRoot(userId);
+        String fullPath = relativePath.startsWith(userRoot) ? relativePath : userRoot + relativePath;
         try {
             StatObjectResponse stat = minioClient.statObject(
                     StatObjectArgs.builder()
                             .bucket(bucket)
-                            .object(normalized + (isDirPath ? "/" : ""))
+                            .object(fullPath)
                             .build()
             );
+            String normalizedPath = relativePath.startsWith(userRoot) ?
+                    relativePath.substring(userRoot.length()) : relativePath;
+            int lastSlash = normalizedPath.lastIndexOf("/");
+            String path = lastSlash >= 0 ? normalizedPath.substring(0, lastSlash + 1) : "";
+            String name = lastSlash >= 0 ? normalizedPath.substring(lastSlash + 1) : normalizedPath;
+
             return new FileResourceDto(path, name, stat.size(), ResourceType.FILE);
         } catch (ErrorResponseException e) {
-            String prefix = normalized + "/";
-            Iterable<Result<Item>> results = minioClient.listObjects(
-                    ListObjectsArgs.builder()
-                            .bucket(bucket)
-                            .prefix(getUserRoot(userId) + prefix)
-                            .recursive(false)
-                            .build()
-            );
-            if (results.iterator().hasNext()) {
-                return new FileResourceDto(path, name, null, ResourceType.DIRECTORY);
-            } else {
-                throw new ResourceNotFoundException("Ресурс не найден: " + relativePath);
+            if (!e.errorResponse().code().equals("NoSuchKey") &&
+                    !e.errorResponse().code().equals("NotFound")) {
+                throw e;
             }
         }
+        String dirPrefix = fullPath.endsWith("/") ? fullPath : fullPath + "/";
+        Iterable<Result<Item>> results = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket(bucket)
+                        .prefix(dirPrefix)
+                        .recursive(false)
+                        .build()
+        );
+        boolean hasObjects = results.iterator().hasNext();
+        if (hasObjects) {
+            String normalizedPath = relativePath.startsWith(userRoot) ?
+                    relativePath.substring(userRoot.length()) : relativePath;
+            if (normalizedPath.endsWith("/")) {
+                normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
+            }
+            int lastSlash = normalizedPath.lastIndexOf("/");
+            String path = lastSlash >= 0 ? normalizedPath.substring(0, lastSlash + 1) : "";
+            String name = lastSlash >= 0 ? normalizedPath.substring(lastSlash + 1) : normalizedPath;
+
+            return new FileResourceDto(path, name, null, ResourceType.DIRECTORY);
+        } else {
+            throw new ResourceNotFoundException("Ресурс не найден: " + relativePath);
+        }
     }
+
 
     /**
      * Удаление ресурса (файл или папка).
@@ -154,33 +165,46 @@ public class FileStorageService {
     public void deleteResource(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
         String userRoot = getUserRoot(userId);
-        String fullPath = userRoot + relativePath;
-        if (relativePath.endsWith("/")) {
+        String fullPath = relativePath.startsWith(userRoot) ? relativePath : userRoot + relativePath;
+        try {
+            getResourceInfo(userId, relativePath);
+        } catch (ResourceNotFoundException e) {
+            throw new ResourceNotFoundException("Ресурс для удаления не найден: " + relativePath);
+        }
+        if (relativePath.endsWith("/") || fullPath.endsWith("/")) {
+            String prefix = fullPath.endsWith("/") ? fullPath : fullPath + "/";
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(bucket)
-                            .prefix(fullPath)
+                            .prefix(prefix)
                             .recursive(true)
                             .build()
+        );
+        for (Result<Item> result : results) {
+            String objectName = result.get().objectName();
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(objectName)
+                            .build()
             );
-            for (Result<Item> result : results) {
-                String objectName = result.get().objectName();
-                minioClient.removeObject(
-                        RemoveObjectArgs.builder()
-                                .bucket(bucket)
-                                .object(objectName)
-                                .build()
-                );
-            }
-        } else {
+        }
+    } else {
+        try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
                             .object(fullPath)
                             .build()
             );
+        } catch (ErrorResponseException e) {
+            if (e.errorResponse().code().equals("NoSuchKey")) {
+                throw new ResourceNotFoundException("Файл не найден: " + relativePath);
+            }
+            throw e;
         }
     }
+}
 
     /**
      * Перемещение (переименование) ресурса.

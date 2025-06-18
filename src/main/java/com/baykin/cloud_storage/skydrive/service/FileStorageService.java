@@ -35,7 +35,7 @@ public class FileStorageService {
     }
 
     /**
-     * Инициализация бакета: если бакет не существует, создаём его.
+     * Инициализация сервиса: проверка существования бакета и его создание при необходимости.
      */
     @PostConstruct
     public void init() throws Exception {
@@ -46,15 +46,20 @@ public class FileStorageService {
     }
 
     /**
-     * Формирует корневой путь пользователя.
-     * Например: user-1-files/
+     * Получает корневой путь пользователя в облачном хранилище.
+     *
+     * @param userId идентификатор пользователя
+     * @return корневой путь пользователя
      */
     private String getUserRoot(Long userId) {
         return authService.getUserRoot(userId);
     }
 
     /**
-     * Проверка того, что запрашиваемый путь начинается с корневой папки пользователя.
+     * Проверяет, что относительный путь не содержит недопустимых символов и не выходит за пределы корневой папки пользователя.
+     *
+     * @param relativePath относительный путь к ресурсу
+     * @throws InvalidPathException если путь некорректен
      */
     private void checkUserAuthorization(String relativePath) {
         if (relativePath == null) return;
@@ -64,9 +69,16 @@ public class FileStorageService {
     }
 
     /**
-     * Загрузка файла в указанную папку.
-     * Если в имени файла есть вложенные директории, они будут созданы автоматически.
-     * Если файл уже существует, выбрасывается исключение.
+     * Загружает файл в облачное хранилище пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param relativePath относительный путь к папке
+     * @param file файл для загрузки
+     * @return DTO с информацией о загруженном файле
+     * @throws AccessDeniedException если путь не принадлежит пользователю
+     * @throws InvalidPathException если путь некорректен
+     * @throws ResourceAlreadyExistsException если файл уже существует
+     * @throws Exception при ошибках MinIO или ввода-вывода
      */
     public FileResourceDto uploadFile(Long userId, String relativePath, MultipartFile file) throws Exception {
         checkUserAuthorization(relativePath);
@@ -106,7 +118,13 @@ public class FileStorageService {
     }
 
     /**
-     * Получение информации о ресурсе (файл или папка) по его полному пути.
+     * Получает информацию о ресурсе (файл или папка) по относительному пути.
+     *
+     * @param userId идентификатор пользователя
+     * @param relativePath относительный путь к ресурсу
+     * @return DTO с информацией о ресурсе
+     * @throws ResourceNotFoundException если ресурс не найден
+     * @throws Exception при ошибках MinIO
      */
     public FileResourceDto getResourceInfo(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
@@ -159,8 +177,12 @@ public class FileStorageService {
 
 
     /**
-     * Удаление ресурса (файл или папка).
-     * Если ресурс – папка, удаляются все объекты с данным префиксом.
+     * Удаляет ресурс (файл или папку) пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param relativePath относительный путь к ресурсу
+     * @throws ResourceNotFoundException если ресурс не найден
+     * @throws Exception при ошибках MinIO
      */
     public void deleteResource(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
@@ -207,8 +229,14 @@ public class FileStorageService {
 }
 
     /**
-     * Перемещение (переименование) ресурса.
-     * Реализуется через копирование и удаление исходного объекта.
+     * Перемещает или переименовывает ресурс пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param from исходный путь
+     * @param to целевой путь
+     * @return DTO с информацией о перемещённом ресурсе
+     * @throws AccessDeniedException если путь не принадлежит пользователю
+     * @throws Exception при ошибках MinIO
      */
     public FileResourceDto moveResource(Long userId, String from, String to) throws Exception {
         checkUserAuthorization(from);
@@ -266,9 +294,14 @@ public class FileStorageService {
     }
 
     /**
-     * Скачивание ресурса.
-     * Если это файл – возвращаем InputStream для его чтения.
-     * Если это папка – выбрасываем исключение, так как используется метод downloadFolderZip.
+     * Скачивает файл пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param relativePath относительный путь к файлу
+     * @return InputStream для чтения файла
+     * @throws InvalidPathException если путь некорректен или указывает на папку
+     * @throws ResourceNotFoundException если файл не найден
+     * @throws Exception при ошибках MinIO
      */
     public InputStream downloadResource(Long userId, String relativePath) throws Exception {
         if (relativePath == null || relativePath.isBlank()) {
@@ -299,8 +332,14 @@ public class FileStorageService {
     }
 
     /**
-     * Скачивание папки в виде ZIP-архива.
-     * Метод находит все объекты с заданным префиксом и архивирует их.
+     * Скачивает папку пользователя в виде ZIP-архива.
+     *
+     * @param userId идентификатор пользователя
+     * @param relativePath относительный путь к папке
+     * @return InputStream с ZIP-архивом папки
+     * @throws InvalidPathException если путь некорректен
+     * @throws AccessDeniedException если путь не принадлежит пользователю
+     * @throws Exception при ошибках MinIO
      */
     public InputStream downloadFolderZip(Long userId, String relativePath) throws Exception {
         if (relativePath == null) {
@@ -346,9 +385,13 @@ public class FileStorageService {
     }
 
     /**
-     * Получение содержимого папки.
-     * Если recursive = false — возвращает только объекты первого уровня,
-     * иначе — все объекты с указанным префиксом.
+     * Получает содержимое папки пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param folderPath относительный путь к папке
+     * @param recursive если true — возвращает содержимое рекурсивно
+     * @return список DTO с информацией о файлах и папках
+     * @throws Exception при ошибках MinIO
      */
     public List<FileResourceDto> listDirectory(Long userId, String folderPath, boolean recursive) throws Exception {
         checkUserAuthorization(folderPath);
@@ -391,8 +434,12 @@ public class FileStorageService {
     }
 
     /**
-     * Поиск ресурсов по префиксу.
-     * Ищем объекты, имена которых содержат заданный запрос.
+     * Ищет файлы и папки пользователя по запросу.
+     *
+     * @param userId идентификатор пользователя
+     * @param query строка для поиска
+     * @return список DTO с найденными файлами и папками
+     * @throws Exception при ошибках MinIO
      */
     public List<FileResourceDto> search(Long userId, String query) throws Exception {
         String userRoot = getUserRoot(userId);
@@ -416,6 +463,15 @@ public class FileStorageService {
         return resultsList;
     }
 
+    /**
+     * Создаёт новую пустую папку в облачном хранилище пользователя.
+     *
+     * @param userId идентификатор пользователя
+     * @param path относительный путь к новой папке
+     * @throws AccessDeniedException если путь не принадлежит пользователю
+     * @throws InvalidPathException если путь некорректен
+     * @throws Exception при ошибках MinIO
+     */
     public void createDirectory(Long userId, String path) throws Exception {
         checkUserAuthorization(path);
         String userRoot = getUserRoot(userId);

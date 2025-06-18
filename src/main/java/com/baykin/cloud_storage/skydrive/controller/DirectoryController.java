@@ -23,9 +23,12 @@ public class DirectoryController {
         this.fileStorageService = fileStorageService;
     }
 
+
     /**
      * Получение содержимого папки.
-     * GET /api/directory?path={folderPath}&recursive={true|false}
+     * GET /api/directory?path={directoryPath}&recursive={true|false}
+     * Параметр path - путь к папке, например: "user-1-files/folder"
+     * Параметр recursive - если true, возвращает содержимое всех вложенных папок
      */
     @Operation(summary = "Получение содержимого папки")
     @ApiResponse(responseCode = "200", description = "Содержимое папки получено")
@@ -39,7 +42,8 @@ public class DirectoryController {
 
     /**
      * Создание новой пустой папки.
-     * POST /api/directory?path={newFolderPath}
+     * POST /api/directory?path={directoryPath}
+     * Параметр path - путь к новой папке, например: "user-1-files/folder/new-folder"
      */
     @Operation(summary = "Создание новой пустой папки")
     @ApiResponse(responseCode = "201", description = "Папка создана")

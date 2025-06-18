@@ -21,6 +21,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Загружает пользователя по имени пользователя.
+     *
+     * @param username имя пользователя
+     * @return UserDetails объект с информацией о пользователе
+     * @throws UsernameNotFoundException если пользователь не найден
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)

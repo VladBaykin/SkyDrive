@@ -25,9 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * Контроллер для обработки запросов аутентификации.
- */
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -41,6 +39,9 @@ public class AuthController {
 
     /**
      * Регистрация нового пользователя.
+     *
+     * @param request DTO с данными для регистрации (логин и пароль)
+     * @return ResponseEntity с информацией о созданном пользователе или ошибке
      */
     @Operation(summary = "Регистрация нового пользователя")
     @ApiResponse(responseCode = "201", description = "User created")
@@ -65,8 +66,12 @@ public class AuthController {
         }
     }
 
+
     /**
      * Авторизация пользователя.
+     *
+     * @param request DTO с данными для авторизации (логин и пароль)
+     * @return ResponseEntity с информацией об успешной авторизации или ошибке
      */
     @Operation(summary = "Авторизация пользователя")
     @ApiResponse(responseCode = "200", description = "User authenticated")
@@ -86,7 +91,11 @@ public class AuthController {
     }
 
     /**
-     * Выход из аккаунта.
+     * Выход пользователя из аккаунта.
+     *
+     * @param request HTTP запрос
+     * @param response HTTP ответ
+     * @return ResponseEntity с кодом 204 (No Content) при успешном выходе
      */
     @Operation(summary = "Выход пользователя из аккаунта")
     @ApiResponse(responseCode = "204", description = "User logged out")

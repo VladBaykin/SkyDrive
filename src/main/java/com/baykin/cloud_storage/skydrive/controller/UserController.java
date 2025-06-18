@@ -20,6 +20,11 @@ public class UserController {
         this.authService = authService;
     }
 
+    /**
+     * Получает информацию о текущем пользователе.
+     *
+     * @return ResponseEntity с информацией о пользователе
+     */
     @Operation(summary = "Получение информации о текущем пользователе")
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser() {

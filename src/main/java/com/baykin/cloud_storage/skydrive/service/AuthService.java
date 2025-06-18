@@ -27,12 +27,22 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * Возвращает корневой путь пользователя для хранения файлов.
+     *
+     * @param userId идентификатор пользователя
+     * @return строка с корневым путём пользователя (например, user-1-files/)
+     */
     public String getUserRoot(Long userId) {
         return "user-" + userId + "-files/";
     }
 
     /**
-     * Регистрация нового пользователя.
+     * Регистрирует нового пользователя.
+     *
+     * @param request DTO с данными для регистрации (логин и пароль)
+     * @return созданный пользователь
+     * @throws UserAlreadyExistsException если пользователь с таким именем уже существует
      */
     public User register(AuthRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -48,7 +58,11 @@ public class AuthService {
     }
 
     /**
-     * Получение пользователя по username.
+     * Получает пользователя по имени пользователя.
+     *
+     * @param username имя пользователя
+     * @return объект пользователя
+     * @throws UserNotFoundException если пользователь не найден
      */
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
@@ -56,7 +70,11 @@ public class AuthService {
     }
 
     /**
-     * Получение ID пользователя по username.
+     * Получает идентификатор пользователя по имени пользователя.
+     *
+     * @param username имя пользователя
+     * @return идентификатор пользователя
+     * @throws UserNotFoundException если пользователь не найден
      */
     public Long getUserIdByUsername(String username) {
         User user = getUserByUsername(username);
@@ -64,7 +82,10 @@ public class AuthService {
     }
 
     /**
-     * Возвращает username текущей аутентифицированной сессии.
+     * Возвращает имя пользователя текущей аутентифицированной сессии.
+     *
+     * @return имя пользователя
+     * @throws AccessDeniedException если пользователь не авторизован
      */
     public String getCurrentUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

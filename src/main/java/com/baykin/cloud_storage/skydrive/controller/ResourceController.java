@@ -29,8 +29,9 @@ public class ResourceController {
     }
 
     /**
-     * Получение информации о ресурсе (файл или папка)
+     * Получение информации о ресурсе.
      * GET /api/resource?path={resourcePath}
+     * Параметр path - путь к ресурсу, например: "user-1-files/folder/file.txt"
      */
     @Operation(summary = "Получение информации о ресурсе")
     @ApiResponse(responseCode = "200", description = "Информация получена")
@@ -47,6 +48,7 @@ public class ResourceController {
     /**
      * Удаление ресурса.
      * DELETE /api/resource?path={resourcePath}
+     * Параметр path - путь к ресурсу, например: "user-1-files/folder/file.txt"
      */
     @Operation(summary = "Удаление ресурса")
     @ApiResponse(responseCode = "204", description = "Ресурс удалён")
@@ -60,7 +62,8 @@ public class ResourceController {
 
     /**
      * Скачивание ресурса.
-     * GET /api/resource/download?path={filePath}
+     * GET /api/resource/download?path={filePath}&zip=false
+     * Параметр path - путь к файлу, например: "user-1-files/folder/file.txt"
      */
     @Operation(summary = "Скачивание ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс скачан")
@@ -84,6 +87,7 @@ public class ResourceController {
     /**
      * Скачивание папки в виде ZIP-архива.
      * GET /api/resource/download?path={folderPath}&zip=true
+     * Параметр path - путь к папке, например: "user-1-files/folder"
      */
     @Operation(summary = "Скачивание папки в виде ZIP-архива")
     @ApiResponse(responseCode = "200", description = "Папка скачана в виде архива")
@@ -107,6 +111,7 @@ public class ResourceController {
     /**
      * Переименование/перемещение ресурса.
      * GET /api/resource/move?from={oldPath}&to={newPath}
+     * Параметры from и to - пути к ресурсу, например: "user-1-files/folder/file.txt" и "user-1-files/folder/new-file.txt"
      */
     @Operation(summary = "Переименование/перемещение ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс перемещён")
@@ -120,6 +125,7 @@ public class ResourceController {
     /**
      * Поиск ресурсов по запросу.
      * GET /api/resource/search?query={searchQuery}
+     * Параметр query - строка для поиска, например: "file.txt"
      */
     @Operation(summary = "Поиск ресурсов")
     @ApiResponse(responseCode = "200", description = "Результаты поиска")
@@ -131,9 +137,10 @@ public class ResourceController {
     }
 
     /**
-     * Загрузка файла(ов).
-     * POST /api/resource?path={targetFolder}   (multipart/form-data)
-     * Тело запроса должно содержать данные из file input в формате MultipartFile.
+     * Загрузка файлов.
+     * POST /api/resource
+     * Параметр path - путь к папке, куда будут загружены файлы, например: "user-1-files/folder/"
+     * Файлы передаются в теле запроса как multipart/form-data
      */
     @Operation(summary = "Загрузка файла")
     @ApiResponse(responseCode = "201", description = "Файл загружен")

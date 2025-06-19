@@ -187,46 +187,39 @@ public class FileStorageService {
     public void deleteResource(Long userId, String relativePath) throws Exception {
         checkUserAuthorization(relativePath);
         String userRoot = getUserRoot(userId);
-        String fullPath = relativePath.startsWith(userRoot) ? relativePath : userRoot + relativePath;
-        try {
-            getResourceInfo(userId, relativePath);
-        } catch (ResourceNotFoundException e) {
-            throw new ResourceNotFoundException("Ресурс для удаления не найден: " + relativePath);
-        }
-        if (relativePath.endsWith("/") || fullPath.endsWith("/")) {
-            String prefix = fullPath.endsWith("/") ? fullPath : fullPath + "/";
-            Iterable<Result<Item>> results = minioClient.listObjects(
-                    ListObjectsArgs.builder()
-                            .bucket(bucket)
-                            .prefix(prefix)
-                            .recursive(true)
-                            .build()
-        );
-        for (Result<Item> result : results) {
-            String objectName = result.get().objectName();
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(bucket)
-                            .object(objectName)
-                            .build()
-            );
-        }
-    } else {
+
+        String fileKey = userRoot + relativePath;
         try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
-                            .object(fullPath)
+                            .object(fileKey)
                             .build()
             );
         } catch (ErrorResponseException e) {
-            if (e.errorResponse().code().equals("NoSuchKey")) {
-                throw new ResourceNotFoundException("Файл не найден: " + relativePath);
+            if (!"NoSuchKey".equals(e.errorResponse().code())) {
+                throw e;
             }
-            throw e;
+        }
+        String dirSuffix = relativePath.endsWith("/") ? relativePath : relativePath + "/";
+        String dirPrefix = userRoot + dirSuffix;
+        Iterable<Result<Item>> results = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket(bucket)
+                        .prefix(dirPrefix)
+                        .recursive(true)
+                        .build()
+        );
+        for (Result<Item> res : results) {
+            String objName = res.get().objectName();
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(objName)
+                            .build()
+            );
         }
     }
-}
 
     /**
      * Перемещает или переименовывает ресурс пользователя.
@@ -304,18 +297,15 @@ public class FileStorageService {
      * @throws Exception при ошибках MinIO
      */
     public InputStream downloadResource(Long userId, String relativePath) throws Exception {
+        checkUserAuthorization(relativePath);
         if (relativePath == null || relativePath.isBlank()) {
             throw new InvalidPathException("Путь не может быть пустым");
         }
         if (relativePath.endsWith("/")) {
             throw new InvalidPathException("Для скачивания папки используйте метод downloadFolderZip");
         }
-        checkUserAuthorization(relativePath);
-        String userRoot = getUserRoot(userId);
-        if (!relativePath.startsWith(userRoot)) {
-            throw new AccessDeniedException("Путь не принадлежит текущему пользователю");
-        }
-        String objectName = relativePath;
+
+        String objectName = getUserRoot(userId) + relativePath;
         try {
             return minioClient.getObject(
                     GetObjectArgs.builder()
@@ -324,7 +314,7 @@ public class FileStorageService {
                             .build()
             );
         } catch (ErrorResponseException e) {
-            if (e.errorResponse().code().equals("NoSuchKey")) {
+            if ("NoSuchKey".equals(e.errorResponse().code())) {
                 throw new ResourceNotFoundException("Файл не найден: " + relativePath);
             }
             throw e;
@@ -342,27 +332,25 @@ public class FileStorageService {
      * @throws Exception при ошибках MinIO
      */
     public InputStream downloadFolderZip(Long userId, String relativePath) throws Exception {
-        if (relativePath == null) {
+        checkUserAuthorization(relativePath);
+        if (relativePath == null || relativePath.isBlank()) {
             throw new InvalidPathException("Путь не может быть пустым");
         }
+
         String normalized = relativePath.endsWith("/") ? relativePath : relativePath + "/";
-        checkUserAuthorization(normalized);
-        String userRoot = getUserRoot(userId);
-        if (!normalized.startsWith(userRoot)) {
-            throw new AccessDeniedException("Путь не принадлежит текущему пользователю");
-        }
-        String prefix = normalized;
+        String prefix = getUserRoot(userId) + normalized;
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            Iterable<Result<Item>> results = minioClient.listObjects(
+            Iterable<Result<Item>> items = minioClient.listObjects(
                     ListObjectsArgs.builder()
                             .bucket(bucket)
                             .prefix(prefix)
                             .recursive(true)
                             .build()
             );
-            for (Result<Item> result : results) {
-                Item item = result.get();
+            for (Result<Item> res : items) {
+                Item item = res.get();
                 if (item.isDir()) continue;
                 try (InputStream is = minioClient.getObject(
                         GetObjectArgs.builder()
@@ -371,11 +359,10 @@ public class FileStorageService {
                                 .build())) {
                     String entryName = item.objectName().substring(prefix.length());
                     zos.putNextEntry(new ZipEntry(entryName));
-
-                    byte[] buffer = new byte[8192];
+                    byte[] buf = new byte[8192];
                     int len;
-                    while ((len = is.read(buffer)) > 0) {
-                        zos.write(buffer, 0, len);
+                    while ((len = is.read(buf)) > 0) {
+                        zos.write(buf, 0, len);
                     }
                     zos.closeEntry();
                 }

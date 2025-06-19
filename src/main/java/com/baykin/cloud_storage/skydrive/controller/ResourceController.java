@@ -1,19 +1,21 @@
 package com.baykin.cloud_storage.skydrive.controller;
 
 import com.baykin.cloud_storage.skydrive.dto.FileResourceDto;
+import com.baykin.cloud_storage.skydrive.dto.ResourceType;
+import com.baykin.cloud_storage.skydrive.exception.ResourceNotFoundException;
 import com.baykin.cloud_storage.skydrive.service.AuthService;
 import com.baykin.cloud_storage.skydrive.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.*;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,49 +64,60 @@ public class ResourceController {
 
     /**
      * Скачивание ресурса.
-     * GET /api/resource/download?path={filePath}&zip=false
-     * Параметр path - путь к файлу, например: "user-1-files/folder/file.txt"
+     * GET /api/resource/download?path={resourcePath}&zip={true|false}
+     * Параметр path - путь к ресурсу, например: "user-1-files/folder/file.txt"
+     * Параметр zip - если true, то папка будет скачана в виде zip-архива
      */
     @Operation(summary = "Скачивание ресурса")
     @ApiResponse(responseCode = "200", description = "Ресурс скачан")
-    @GetMapping(value = "/resource/download", params = "!zip")
-    public void downloadResource(@RequestParam String path, HttpServletResponse response) throws Exception {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Long userId = authService.getUserIdByUsername(username);
-        OutputStream os;
-        try (InputStream is = fileStorageService.downloadResource(userId, path)) {
-            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-            os = response.getOutputStream();
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
-            }
+    @GetMapping(value = "/resource/download")
+    public void download(@RequestParam String path,
+                         @RequestParam(defaultValue = "false") boolean zip,
+                         HttpServletResponse response) throws Exception {
+        Long userId = authService.getUserIdByUsername(authService.getCurrentUsername());
+        String originalPath = path;
+        boolean isDirectory;
+        try {
+            isDirectory = fileStorageService
+                    .getResourceInfo(userId, path)
+                    .getType() == ResourceType.DIRECTORY;
+        } catch (ResourceNotFoundException ex) {
+            if (!path.endsWith("/")) {
+                isDirectory = fileStorageService
+                        .getResourceInfo(userId, path + "/")
+                        .getType() == ResourceType.DIRECTORY;
+                path = path + "/";
+            } else throw ex;
         }
-        os.flush();
-    }
-
-    /**
-     * Скачивание папки в виде ZIP-архива.
-     * GET /api/resource/download?path={folderPath}&zip=true
-     * Параметр path - путь к папке, например: "user-1-files/folder"
-     */
-    @Operation(summary = "Скачивание папки в виде ZIP-архива")
-    @ApiResponse(responseCode = "200", description = "Папка скачана в виде архива")
-    @GetMapping(value = "/resource/download", params = "zip")
-    public void downloadFolder(@RequestParam String path, HttpServletResponse response) throws Exception {
-        String username = authService.getCurrentUsername();
-        Long userId = authService.getUserIdByUsername(username);
-        try (InputStream is = fileStorageService.downloadFolderZip(userId, path)) {
-            response.setContentType("application/zip");
-            response.setHeader("Content-Disposition", "attachment; filename=\"archive.zip\"");
-            OutputStream os = response.getOutputStream();
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = is.read(buf)) != -1) {
-                os.write(buf, 0, len);
+        if (isDirectory || zip) {
+            try (InputStream is = fileStorageService.downloadFolderZip(userId, path)) {
+                String dirName = originalPath.endsWith("/")
+                        ? originalPath.substring(0, originalPath.length() - 1)
+                        : originalPath;
+                int slash = dirName.lastIndexOf('/');
+                if (slash >= 0) dirName = dirName.substring(slash + 1);
+                String archive = dirName + ".zip";
+                String encoded = URLEncoder.encode(archive, StandardCharsets.UTF_8)
+                        .replaceAll("\\+", "%20");
+                response.setContentType("application/zip");
+                response.setHeader("Content-Disposition",
+                        "attachment; filename=\"" + archive + "\"; " +
+                                "filename*=UTF-8''" + encoded);
+                StreamUtils.copy(is, response.getOutputStream());
             }
-            os.flush();
+            return;
+        }
+        try (InputStream is = fileStorageService.downloadResource(userId, path)) {
+            String fileName = originalPath.contains("/")
+                    ? originalPath.substring(originalPath.lastIndexOf('/') + 1)
+                    : originalPath;
+            String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
+            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=\"" + fileName + "\"; " +
+                            "filename*=UTF-8''" + encoded);
+            StreamUtils.copy(is, response.getOutputStream());
         }
     }
 

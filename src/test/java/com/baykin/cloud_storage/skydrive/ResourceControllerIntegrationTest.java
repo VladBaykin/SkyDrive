@@ -1,3 +1,4 @@
+
 package com.baykin.cloud_storage.skydrive;
 
 import com.baykin.cloud_storage.skydrive.dto.AuthRequest;
@@ -64,7 +65,7 @@ public class ResourceControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$[0].name").value("a.txt"));
 
-        // 2) Повторная загрузка → 400 или 409 (в зависимости от вашего кода)
+        // 2) Повторная загрузка
         mockMvc.perform(multipart("/api/resource")
                         .file(file)
                         .param("path", "docs/")
@@ -78,31 +79,30 @@ public class ResourceControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("a.txt"));
 
-        // 4) Получение информации о ресурсе
-        String fullPath = String.format("user-%d-files/docs/a.txt",
-                userRepository.findByUsername(username).get().getId());
+        // 4) Получение информации о ресурсе - используем относительный путь
+        String relativePath = "docs/a.txt";
         mockMvc.perform(get("/api/resource")
-                        .param("path", fullPath)
+                        .param("path", relativePath)
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("FILE"));
 
-        // 5) Скачивание файла
+        // 5) Скачивание файла - используем относительный путь
         mockMvc.perform(get("/api/resource/download")
-                        .param("path", fullPath)
+                        .param("path", relativePath)
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/octet-stream"));
 
-        // 6) Удаление файла
+        // 6) Удаление файла - используем относительный путь
         mockMvc.perform(delete("/api/resource")
-                        .param("path", fullPath)
+                        .param("path", relativePath)
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isNoContent());
 
         // 7) Повторное получение → 404
         mockMvc.perform(get("/api/resource")
-                        .param("path", fullPath)
+                        .param("path", relativePath)
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isNotFound());
     }
@@ -122,15 +122,14 @@ public class ResourceControllerIntegrationTest {
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated());
 
-        // Скачиваем папку как zip
-        String folderPath = String.format("user-%d-files/ziptest/",
-                userRepository.findByUsername(username).get().getId());
+        // Скачиваем папку как zip - используем относительный путь
+        String folderPath = "ziptest/";
         mockMvc.perform(get("/api/resource/download")
                         .param("path", folderPath)
                         .param("zip", "true")
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Disposition", containsString("archive.zip")))
+                .andExpect(header().string("Content-Disposition", containsString("ziptest.zip")))
                 .andExpect(content().contentType("application/zip"));
     }
 
@@ -143,11 +142,9 @@ public class ResourceControllerIntegrationTest {
                         .with(user(username).password(password).roles("USER")))
                 .andExpect(status().isCreated());
 
-        // Переименование
-        String from = String.format("user-%d-files/mv/m.txt",
-                userRepository.findByUsername(username).get().getId());
-        String to   = String.format("user-%d-files/mv/new.txt",
-                userRepository.findByUsername(username).get().getId());
+        // Переименование - используем относительные пути
+        String from = "mv/m.txt";
+        String to = "mv/new.txt";
         mockMvc.perform(get("/api/resource/move")
                         .param("from", from)
                         .param("to", to)

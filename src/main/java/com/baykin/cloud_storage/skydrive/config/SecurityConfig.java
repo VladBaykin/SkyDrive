@@ -63,6 +63,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "http://localhost:8080"
+                , "http://158.255.0.141"
         ));
         config.setAllowedMethods(List.of("*"));
         config.setAllowedHeaders(List.of("*"));
@@ -81,7 +82,7 @@ public class SecurityConfig {
         serializer.setCookieName("SESSION");
         serializer.setSameSite("Lax");
         serializer.setUseSecureCookie(false);
-        serializer.setDomainName("localhost");
+//        serializer.setDomainName("localhost");
         return serializer;
     }
 

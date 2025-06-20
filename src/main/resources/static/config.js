@@ -4,7 +4,7 @@ window.APP_CONFIG = {
 
     mainName: "CLOUD STORAGE",
 
-    baseUrl: "http://localhost:8080",
+    baseUrl: "",
 
     baseApi: "/api",
 

@@ -82,7 +82,7 @@ public class SecurityConfig {
         serializer.setCookieName("SESSION");
         serializer.setSameSite("Lax");
         serializer.setUseSecureCookie(false);
-//        serializer.setDomainName("localhost");
+        serializer.setCookieMaxAge(3600);
         return serializer;
     }
 

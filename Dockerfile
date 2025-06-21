@@ -1,4 +1,4 @@
-FROM gradle:8.3-jdk17 AS build
+FROM gradle:8.8-jdk17-alpine AS build
 WORKDIR /workspace
 COPY . .
 RUN gradle clean bootJar -x test
